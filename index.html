@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Žemėlapis su išsaugojimu</title>
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  body {
+    background-color: #121212;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+    height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    color: #fff;
+  }
+
+  h1 {
+    margin: 20px 0 10px 0;
+  }
+
+  #mapContainer {
+    width: 600px;
+    height: 400px;
+    background-color: #0D1B2A;
+    border: 2px solid #333;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  }
+
+  #inputSection {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+  }
+
+  input[type="text"] {
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+
+  button {
+    padding: 8px 12px;
+    background-color: #1E90FF;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background-color: #63b3ed;
+  }
+</style>
+</head>
+<body>
+
+<h1>Žemėlapis su pažymėtomis vietomis</h1>
+
+<div id="mapContainer"></div>
+
+<div id="inputSection">
+  <input type="text" id="latInput" placeholder="Platuma (pvz 54.6872)">
+  <input type="text" id="lngInput" placeholder="Ilguma (pvz 25.2798)">
+  <input type="text" id="nameInput" placeholder="Pavadinimas / Pastaba">
+  <button id="addMarkerBtn">Pridėti vietą</button>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  // Inicializuojame žemėlapį
+  const map = L.map('mapContainer').setView([54.6872, 25.2798], 5);
+
+  // Pridedame žemėlapio sluoksnį
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap' 
+  }).addTo(map);
+
+  // Išsaugotos vietos
+  let locations = [];
+
+  // Funkcija įkelti iš localStorage
+  function loadLocations() {
+    const saved = localStorage.getItem('locations');
+    if (saved) {
+      locations = JSON.parse(saved);
+      locations.forEach(loc => {
+        addMarkerToMap(loc);
+      });
+    }
+  }
+
+  // Funkcija išsaugoti į localStorage
+  function saveLocations() {
+    localStorage.setItem('locations', JSON.stringify(locations));
+  }
+
+  // Funkcija pridėti žymeklį ir sukurti popup su redagavimo galimybe
+  function addMarkerToMap(loc) {
+    const marker = L.marker([loc.lat, loc.lng]).addTo(map);
+    updatePopup(marker, loc);
+    marker.on('click', () => {
+      marker.openPopup();
+    });
+  }
+
+  // Funkcija atnaujinti popup
+  function updatePopup(marker, loc) {
+    marker.bindPopup(`
+      <b>${loc.name}</b><br>
+      <button onclick="editLocation('${loc.id}')">Redaguoti pavadinimą</button>
+      <button onclick="deleteLocation('${loc.id}')">Ištrinti</button>
+    `);
+  }
+
+  // Pridėti naują vietą
+  document.getElementById('addMarkerBtn').addEventListener('click', () => {
+    const lat = parseFloat(document.getElementById('latInput').value);
+    const lng = parseFloat(document.getElementById('lngInput').value);
+    const name = document.getElementById('nameInput').value;
+
+    if (isNaN(lat) || isNaN(lng)) {
+      alert('Įveskite teisingas koordinates!');
+      return;
+    }
+
+    const newLoc = {
+      id: Date.now().toString(),
+      lat,
+      lng,
+      name
+    };
+    locations.push(newLoc);
+    addMarkerToMap(newLoc);
+    saveLocations();
+
+    // Perkelti žemėlapį į vietą
+    map.setView([lat, lng], 10);
+  });
+
+  // Funkcija redaguoti pavadinimą
+  function editLocation(id) {
+    const loc = locations.find(l => l.id === id);
+    const newName = prompt('Įveskite naują pavadinimą:', loc.name);
+    if (newName !== null) {
+      loc.name = newName;
+      // Atstatyti pažymėtą žymeklį
+      // Pirmiausia ištrinti seną žymeklį
+      // Kadangi Leaflet neturi tiesioginės nuorodos, reikia saugoti
+      // arba persikurti visus žemėlapyje. Paprasčiausias būdas - tiesiog iš naujo įkelti.
+      // Taigi, iš naujo užkrausime visus žemėlapyje
+      // arba saugoti žymeklį kaip objektą ir jį atnaujinti.
+      
+      // Paprasta būdas - iš naujo užkrauti visus žemėlapius
+      map.eachLayer(layer => {
+        if (layer instanceof L.Marker) {
+          map.removeLayer(layer);
+        }
+      });
+      locations.forEach(loc => addMarkerToMap(loc));
+      saveLocations();
+    }
+  }
+
+  // Funkcija ištrinti vietą
+  function deleteLocation(id) {
+    locations = locations.filter(l => l.id !== id);
+    // Iš naujo užkrauti žemėlapį
+    map.eachLayer(layer => {
+      if (layer instanceof L.Marker) {
+        map.removeLayer(layer);
+      }
+    });
+    locations.forEach(loc => addMarkerToMap(loc));
+    saveLocations();
+  }
+
+  // Kai įkelti, atnaujinti išsaugotas vietas
+  loadLocations();
+</script>
+
+</body>
+</html>

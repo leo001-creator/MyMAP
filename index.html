@@ -1,157 +1,235 @@
+<!--
+Trumpas aprašymas: Interaktyvus Leaflet žemėlapis su žymių valdymu. 
+Palaikoma koordinačių įvedimas DMS formatu vienoje eilutėje, žymeklių pridėjimas ir trynimas. 
+Tamsus, minimalistinis dizainas su užapvalintais kampais.
+-->
 <!DOCTYPE html>
 <html lang="lt">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Žemėlapis su vietomis</title>
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<style>
-  #map {
-    width: 250%; /* padidinome 2,5 karto */
-    height: 600px;
-  }
-  #places-list {
-    margin-top: 20px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Žemėlapis su vietomis</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #111;
+      color: #eee;
+      font-family: Arial, sans-serif;
+    }
+    h2, h3 {
+      margin: 10px 0;
+      color: #eee;
+    }
+    .container {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    /* Šoninės juostos stiliai */
+    .sidebar {
+      width: 300px;
+      background: #222;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .sidebar label {
+      display: block;
+      margin-top: 10px;
+    }
+    .sidebar input {
+      width: calc(100% - 8px);
+      padding: 4px;
+      margin-top: 5px;
+      background: #333;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    .sidebar button {
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    .sidebar button:hover {
+      background: #555;
+    }
+    .sidebar button:focus {
+      outline: 2px solid #66aaff;
+    }
+    /* Žemėlapio stiliai */
+    .map-container {
+      /* Manoma, kad originalus žemėlapio plotis buvo ~320px, todėl 2.5x yra ~800px */
+    }
+    #map {
+      width: 750px;
+      height: 600px;
+      border: 2px solid #444;
+      border-radius: 8px;
+    }
+    /* Vietų sąrašo stiliai */
+    #places-list {
+      margin-top: 10px;
+    }
+    #places-list div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #333;
+      padding: 4px 6px;
+      margin-bottom: 5px;
+      border-radius: 4px;
+    }
+    #places-list button {
+      background: #556;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 3px 8px;
+      cursor: pointer;
+    }
+    #places-list button:hover {
+      background: #667;
+    }
+  </style>
 </head>
 <body>
+  <h2>Žemėlapis su vietomis</h2>
+  <div class="container">
+    <div class="sidebar">
+      <h3>Pridėti vietą</h3>
+      <label>Koordinatės (viena eilutė):</label>
+      <input type="text" id="coords" placeholder='pvz.: 54°42\'17.9"N 25°16\'52.4"E' />
+      <label>Pavadinimas:</label>
+      <input type="text" id="placeName" placeholder="Vietos pavadinimas" />
+      <button onclick="addCurrentCoordinates()">Pridėti vietą</button>
+      <h3>Vietų sąrašas</h3>
+      <div id="places-list"></div>
+    </div>
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
 
-<h2>Žemėlapis su vietomis</h2>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Inicializuojame žemėlapį
+    const map = L.map('map').setView([54.7050, 25.2801], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-<div id="map"></div>
+    // Sąrašas vietų
+    let places = [];
 
-<h3>Pridėti vietą</h3>
-<label>Koordinatės (viena eilutė):</label><br/>
-<input type="text" id="coords" value='54°42\'17.9"N 25°16\'52.4"E' style="width: 400px;"/><br/><br/>
-<label>Pavadinimas:</label><br/>
-<input type="text" id="placeName" value="Nauja vieta" style="width: 200px;"/><br/><br/>
-<button onclick="addCurrentCoordinates()">Pridėti dabartines koordinates</button>
+    // Funkcija pridėti vietą (prideda žymeklį ir sąrašo elementą)
+    function addPlace(lat, lng, name) {
+      const id = Date.now(); // unikalus ID
+      // Pridėti į sąrašą
+      places.push({id, lat, lng, name});
+      updatePlacesList();
+      // Pridėti žymeklį žemėlapyje su popup
+      const marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<strong>${name}</strong><br>${formatCoordinates(lat, lng)}`);
+      marker._id = id;
+      // atidarome popup (neprivaloma)
+      // marker.openPopup();
+    }
 
-<h3>Vietų sąrašas</h3>
-<div id="places-list"></div>
+    // Atnaujinti vietų sąrašą įrašant naujus elementus
+    function updatePlacesList() {
+      const listDiv = document.getElementById("places-list");
+      listDiv.innerHTML = "";
+      places.forEach((place, index) => {
+        const div = document.createElement("div");
+        // Kiekvienas elementas turi numerį, pavadinimą ir koordinatės vienoje eilutėje
+        div.innerHTML = `${index + 1}. <strong>${place.name}</strong> (${formatCoordinates(place.lat, place.lng)}) 
+                         <button onclick="removePlace(${place.id})">Ištrinti</button>`;
+        listDiv.appendChild(div);
+      });
+    }
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-  // inicializuojame žemėlapį
-  const map = L.map('map').setView([54.7050, 25.2801], 10);
-  
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+    // Funkcija ištrinti vietą pagal ID
+    function removePlace(id) {
+      // Pašalinti iš masyvo
+      places = places.filter(p => p.id !== id);
+      // Pašalinti žymeklį iš žemėlapio
+      map.eachLayer(layer => {
+        if (layer._id === id) {
+          map.removeLayer(layer);
+        }
+      });
+      updatePlacesList();
+    }
 
-  // vietų sąrašas
-  let places = [];
+    // Formatavimas: paruošiame DMS koordinatės eilutę
+    function formatCoordinates(lat, lng) {
+      return `${convertToDMS(lat, true)} ${convertToDMS(lng, false)}`;
+    }
 
-  // funkcija pridėti vietą
-  function addPlace(lat, lng, name) {
-    const id = Date.now(); // unikalus ID
-    // pridedame į sąrašą
-    places.push({id, lat, lng, name});
-    updatePlacesList();
+    function convertToDMS(deg, isLat) {
+      const absolute = Math.abs(deg);
+      const degrees = Math.floor(absolute);
+      const minutesNotTruncated = (absolute - degrees) * 60;
+      const minutes = Math.floor(minutesNotTruncated);
+      const seconds = ((minutesNotTruncated - minutes) * 60).toFixed(1);
+      const direction = getDirection(deg, isLat);
+      return `${degrees}°${minutes}'${seconds}"${direction}`;
+    }
 
-    // pridedame žymę žemėlapyje
-    const marker = L.marker([lat, lng]).addTo(map).bindPopup(name);
-    marker._id = id; // priskiriame ID žymei
-  }
-
-  // atnaujinti sąrašą
-  function updatePlacesList() {
-    const listDiv = document.getElementById("places-list");
-    listDiv.innerHTML = "";
-    places.forEach(place => {
-      const div = document.createElement("div");
-      div.innerHTML = `
-        <b>${place.name}</b> (${formatCoordinates(place.lat, place.lng)})
-        <button onclick="removePlace(${place.id})">Ištrinti</button>
-      `;
-      listDiv.appendChild(div);
-    });
-  }
-
-  // funkcija ištrinti vietą
-  function removePlace(id) {
-    // ištrinti iš sąrašo
-    places = places.filter(p => p.id !== id);
-    // ištrinti žymę iš žemėlapio
-    map.eachLayer(layer => {
-      if (layer._id === id) {
-        map.removeLayer(layer);
+    function getDirection(deg, isLat) {
+      if (isLat) {
+        return deg >= 0 ? 'N' : 'S';
+      } else {
+        return deg >= 0 ? 'E' : 'W';
       }
-    });
-    updatePlacesList();
-  }
-
-  // formatavimas koordinačių kaip viena eilutė
-  function formatCoordinates(lat, lng) {
-    return `"${convertToDMS(lat, true)} ${convertToDMS(lng, false)}"`;
-  }
-
-  function convertToDMS(deg, isLat) {
-    const absolute = Math.abs(deg);
-    const degrees = Math.floor(absolute);
-    const minutesNotTruncated = (absolute - degrees) * 60;
-    const minutes = Math.floor(minutesNotTruncated);
-    const seconds = ((minutesNotTruncated - minutes) * 60).toFixed(1);
-
-    const direction = getDirection(deg, isLat);
-    return `${degrees}°${minutes}'${seconds}"${direction}`;
-  }
-
-  function getDirection(deg, isLat) {
-    if (isLat) {
-      return deg >= 0 ? 'N' : 'S';
-    } else {
-      return deg >= 0 ? 'E' : 'W';
     }
-  }
 
-  // funkcija pridėti dabartines koordinates iš įvesties
-  function addCurrentCoordinates() {
-    const coordsStr = document.getElementById("coords").value;
-    const name = document.getElementById("placeName").value.trim() || "Vieta";
-
-    const coords = parseCoordinates(coordsStr);
-    if (coords) {
-      addPlace(coords.lat, coords.lng, name);
-    } else {
-      alert("Neleistinos koordinatės");
+    // Funkcija pridėti vietą iš įvestų koordinačių
+    function addCurrentCoordinates() {
+      const coordsStr = document.getElementById("coords").value.trim();
+      const name = document.getElementById("placeName").value.trim() || "Vieta";
+      const coords = parseCoordinates(coordsStr);
+      if (coords) {
+        addPlace(coords.lat, coords.lng, name);
+      } else {
+        alert("Neleistinos arba neteisingos koordinatės");
+      }
     }
-  }
 
-  // paprastas koordinatų parsinimas (labai bazinis)
-  function parseCoordinates(str) {
-    // Pavyzdžiui: "54°42'17.9\"N 25°16'52.4\"E"
-    const regex = /(\d+)°(\d+)'([\d.]+)\"([NS])\s+(\d+)°(\d+)'([\d.]+)\"([EW])/i;
-    const match = str.match(regex);
-    if (match) {
-      const latDeg = parseInt(match[1]);
-      const latMin = parseInt(match[2]);
-      const latSec = parseFloat(match[3]);
-      const latDir = match[4];
-
-      const lngDeg = parseInt(match[5]);
-      const lngMin = parseInt(match[6]);
-      const lngSec = parseFloat(match[7]);
-      const lngDir = match[8];
-
-      let lat = latDeg + latMin/60 + latSec/3600;
-      let lng = lngDeg + lngMin/60 + lngSec/3600;
-
-      if (latDir.toUpperCase() === 'S') lat = -lat;
-      if (lngDir.toUpperCase() === 'W') lng = -lng;
-
-      return {lat, lng};
-    } else {
-      return null;
+    // Paprastas koordinačių parsinimas (parama DMS formatu su tarpu ar kabliat.)
+    function parseCoordinates(str) {
+      // Pvz: "54°42'17.9\"N 25°16'52.4\"E" arba su tarpais/kabliatuši. 
+      const regex = /(\d{1,3})°\s*(\d{1,2})'(\d+(\.\d+)?)"?\s*([NS])\s*,?\s*(\d{1,3})°\s*(\d{1,2})'(\d+(\.\d+)?)"?\s*([EW])/i;
+      const match = str.match(regex);
+      if (match) {
+        const latDeg = parseInt(match[1], 10);
+        const latMin = parseInt(match[2], 10);
+        const latSec = parseFloat(match[3]);
+        const latDir = match[5].toUpperCase();
+        const lngDeg = parseInt(match[6], 10);
+        const lngMin = parseInt(match[7], 10);
+        const lngSec = parseFloat(match[8]);
+        const lngDir = match[10].toUpperCase();
+        let lat = latDeg + latMin/60 + latSec/3600;
+        let lng = lngDeg + lngMin/60 + lngSec/3600;
+        if (latDir === 'S') lat = -lat;
+        if (lngDir === 'W') lng = -lng;
+        return {lat, lng};
+      } else {
+        return null;
+      }
     }
-  }
 
-  // pradinės vietos (galite pridėti savo)
-  addPlace(54.7050, 25.2801, "Pirmoji vieta");
-</script>
-
+    // Pradinė žymė (pavyzdinė)
+    addPlace(54.7050, 25.2801, "Pirmoji vieta");
+  </script>
 </body>
 </html>
